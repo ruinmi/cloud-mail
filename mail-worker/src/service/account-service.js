@@ -49,11 +49,11 @@ const accountService = {
 
 		let accountRow = await this.selectByEmailIncludeDel(c, email);
 
-		if (accountRow && accountRow.isDel === isDel.DELETE) {
+		if (accountRow && accountRow.isDel === isDel.DELETE && accountRow.userId !== userId) {
 			throw new BizError(t('isDelAccount'));
 		}
 
-		if (accountRow) {
+		if (accountRow && accountRow.isDel === isDel.NORMAL) {
 			throw new BizError(t('isRegAccount'));
 		}
 
@@ -88,7 +88,11 @@ const accountService = {
 		}
 
 
-		accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+		if (accountRow && accountRow.isDel === isDel.DELETE) {
+			accountRow = await orm(c).update(account).set({ isDel: isDel.NORMAL, name: emailUtils.getName(email) }).where(eq(account.accountId, accountRow.accountId)).returning().get();
+		} else {
+			accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+		}
 
 		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
 			const row = await verifyRecordService.increaseAddCount(c);
