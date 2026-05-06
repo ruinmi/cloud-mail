@@ -28,8 +28,17 @@ const dbInit = {
 		await this.v2_7DB(c);
 		await this.v2_8DB(c);
 		await this.v2_9DB(c);
+		await this.v3_0DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	async v3_0DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE account ADD COLUMN group_name TEXT NOT NULL DEFAULT '默认';`).run();
+		} catch (e) {
+			console.warn(`跳过字段：${e.message}`);
+		}
 	},
 
 	async v2_9DB(c) {
@@ -560,6 +569,7 @@ const dbInit = {
 			latest_email_time DATETIME,
 			create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
 			user_id INTEGER NOT NULL,
+			group_name TEXT NOT NULL DEFAULT '默认',
 			is_del INTEGER DEFAULT 0 NOT NULL
 		  )
 		`).run();

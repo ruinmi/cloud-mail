@@ -19,7 +19,8 @@ const accountService = {
 
 		const { addEmailVerify , addEmail, manyEmail, addVerifyCount, minEmailPrefix, emailPrefixFilter } = await settingService.query(c);
 
-		let { email, token } = params;
+		let { email, token, groupName } = params;
+		groupName = this.normalizeGroupName(groupName);
 
 
 		if (!(addEmail === settingConst.addEmail.OPEN && manyEmail === settingConst.manyEmail.OPEN)) {
@@ -89,9 +90,9 @@ const accountService = {
 
 
 		if (accountRow && accountRow.isDel === isDel.DELETE) {
-			accountRow = await orm(c).update(account).set({ isDel: isDel.NORMAL, name: emailUtils.getName(email) }).where(eq(account.accountId, accountRow.accountId)).returning().get();
+			accountRow = await orm(c).update(account).set({ isDel: isDel.NORMAL, name: emailUtils.getName(email), groupName }).where(eq(account.accountId, accountRow.accountId)).returning().get();
 		} else {
-			accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+			accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email), groupName }).returning().get();
 		}
 
 		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
@@ -101,6 +102,11 @@ const accountService = {
 
 		accountRow.addVerifyOpen = addVerifyOpen
 		return accountRow;
+	},
+
+	normalizeGroupName(groupName) {
+		groupName = `${groupName || '默认'}`.trim();
+		return groupName.length > 30 ? groupName.slice(0, 30) : groupName;
 	},
 
 	selectByEmailIncludeDel(c, email) {
@@ -263,12 +269,17 @@ const accountService = {
 
 	async setAsTop(c, params, userId) {
 		const { accountId } = params;
-		console.log(accountId);
 		const userRow = await userService.selectById(c, userId);
 		const mainAccountRow = await accountService.selectByEmailIncludeDel(c, userRow.email);
 		let mainSort = mainAccountRow.sort === 0 ? 2 : mainAccountRow.sort + 1;
 		await orm(c).update(account).set({ sort: mainSort }).where(eq(account.email, userRow.email )).run();
 		await orm(c).update(account).set({ sort: mainSort - 1 }).where(and(eq(account.accountId, accountId),eq(account.userId,userId))).run();
+	},
+
+	async setGroup(c, params, userId) {
+		let { accountId, groupName } = params;
+		groupName = this.normalizeGroupName(groupName);
+		await orm(c).update(account).set({ groupName }).where(and(eq(account.accountId, accountId), eq(account.userId, userId))).run();
 	}
 };
 

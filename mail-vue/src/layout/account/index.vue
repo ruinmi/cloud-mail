@@ -1,40 +1,56 @@
 <template>
   <div class="account-box">
     <div class="head-opt">
-      <Icon v-perm="'account:add'" class="icon add" icon="ion:add-outline" width="23" height="23" @click="add"/>
+      <Icon v-perm="'account:add'" class="icon add" icon="ion:add-outline" width="23" height="23" @click="add()"/>
+      <Icon v-perm="'account:add'" class="icon refresh" icon="material-symbols:create-new-folder-outline" width="20" height="20" @click="createGroup"/>
       <Icon class="icon refresh" icon="ion:reload" width="18" height="18" @click="refresh"/>
     </div>
     <el-scrollbar class="scrollbar" ref="scrollbarRef">
       <div v-infinite-scroll="getAccountList" :infinite-scroll-distance="600" :infinite-scroll-immediate="false">
-        <el-card class="item" :class="itemBg(item.accountId)" v-for="(item, index) in accounts" :key="item.accountId"
-                 @click="changeAccount(item)">
-          <div class="account">
-            {{ item.email }}
-          </div>
-          <div class="opt">
-            <div class="send-email" @click.stop>
-              <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
-              <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
-            </div>
-            <div class="settings" @click.stop>
-              <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
-              <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
-                    v-if="showNullSetting(item)"/>
-              <el-dropdown v-else>
-                <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, index)">{{ $t('pin') }}</el-dropdown-item>
-                    <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
-                                      @click="remove(item)">{{ $t('delete') }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </div>
-        </el-card>
+        <el-collapse v-model="activeGroups" class="account-collapse">
+          <el-collapse-item v-for="group in accountGroups" :key="group.name" :name="group.name">
+            <template #title>
+              <div class="group-title">
+                <span class="group-name">{{ group.name }}</span>
+                <span class="group-count">{{ group.accounts.length }}</span>
+                <Icon v-perm="'account:add'" class="group-add" icon="ion:add-outline" width="18" height="18"
+                      @click.stop="add(group.name)"/>
+              </div>
+            </template>
+            <el-card class="item" :class="itemBg(item.accountId)" v-for="(item, index) in group.accounts" :key="item.accountId"
+                     @click="changeAccount(item)">
+              <div class="account">
+                {{ item.email }}
+              </div>
+              <div class="opt">
+                <div class="send-email" @click.stop>
+                  <Icon @click="setAllReceive(item)" v-if="!item.allReceive" icon="eva:email-fill" width="22" height="22" color="#fccb1a"/>
+                  <Icon @click="setAllReceive(item)" v-else icon="flat-color-icons:folder" width="22" height="22" color="#23c4f1" />
+                </div>
+                <div class="settings" @click.stop>
+                  <Icon icon="fluent-color:clipboard-24" width="22" height="22" @click.stop="copyAccount(item.email)"/>
+                  <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"
+                        v-if="showNullSetting(item) && accountGroups.length <= 1"/>
+                  <el-dropdown v-else>
+                    <Icon icon="fluent:settings-24-filled" width="21" height="21" color="#909399"/>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item v-if="hasPerm('email:send')" @click="openSetName(item)">{{ $t('rename') }}</el-dropdown-item>
+                        <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId" @click="setAsTop(item, accounts.indexOf(item))">{{ $t('pin') }}</el-dropdown-item>
+                        <el-dropdown-item v-for="targetGroup in moveTargetGroups(item)" :key="targetGroup.name"
+                                          @click="moveAccountToGroup(item, targetGroup.name)">{{ $t('moveToGroup', { msg: targetGroup.name }) }}</el-dropdown-item>
+                        <el-dropdown-item v-if="item.accountId !== userStore.user.account.accountId && hasPerm('account:delete')"
+                                          @click="remove(item)">{{ $t('delete') }}
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+            </el-card>
+            <div class="group-empty" v-if="!group.accounts.length">{{ $t('emptyAccountGroup') }}</div>
+          </el-collapse-item>
+        </el-collapse>
 
         <!-- Initial Loading Skeleton -->
         <template v-if="loading">
@@ -100,6 +116,9 @@
             </div>
           </template>
         </el-input>
+        <el-select v-model="addForm.groupName" class="group-select" :placeholder="$t('selectAccountGroup')">
+          <el-option v-for="group in accountGroups" :key="group.name" :label="group.name" :value="group.name"/>
+        </el-select>
         <el-button class="btn" type="primary" @click="submit" :loading="addLoading"
         >{{ $t('add') }}
         </el-button>
@@ -127,14 +146,15 @@
 </template>
 <script setup>
 import {Icon} from "@iconify/vue";
-import {nextTick, reactive, ref, watch} from "vue";
+import {computed, nextTick, reactive, ref, watch} from "vue";
 import {
   accountList,
   accountAdd,
   accountDelete,
   accountSetName,
   accountSetAllReceive,
-  accountSetAsTop
+  accountSetAsTop,
+  accountSetGroup
 } from "@/request/account.js";
 import {sleep} from "@/utils/time-utils.js"
 import {isEmail} from "@/utils/verify-utils.js";
@@ -170,14 +190,19 @@ const botJsError = ref(false)
 let verifyToken = ''
 let verifyErrorCount = 0
 let first = true
+const defaultGroupName = '默认'
+const accountGroupsKey = 'cloud-mail-account-groups'
 const addForm = reactive({
   email: '',
-  suffix: settingStore.domainList[0]
+  suffix: settingStore.domainList[0],
+  groupName: defaultGroupName
 })
 let skeletonRows = 10
 const queryParams = {
   size: 30
 }
+const customGroups = reactive(loadAccountGroups())
+const activeGroups = ref([])
 
 const mySelect = ref()
 
@@ -188,6 +213,82 @@ if (hasPerm('account:query')) {
 watch(() => accountStore.changeUserAccountName, () => {
   accounts[0].name = accountStore.changeUserAccountName
 })
+
+const accountGroups = computed(() => {
+  const names = new Set([defaultGroupName, ...customGroups])
+  accounts.forEach(item => names.add(accountGroupName(item)))
+  return Array.from(names).map(name => ({
+    name,
+    accounts: accounts.filter(item => accountGroupName(item) === name)
+  }))
+})
+
+watch(accountGroups, (groups) => {
+  const namesList = groups.map(group => group.name)
+  activeGroups.value = activeGroups.value.filter(name => namesList.includes(name))
+  if (activeGroups.value.length === 0 && namesList.length > 0) {
+    activeGroups.value = [...namesList]
+  }
+}, { immediate: true })
+
+function accountGroupName(account) {
+  return account?.groupName || defaultGroupName
+}
+
+function moveTargetGroups(account) {
+  const currentGroupName = accountGroupName(account)
+  return accountGroups.value.filter(group => group.name !== currentGroupName)
+}
+
+function loadAccountGroups() {
+  try {
+    const groups = JSON.parse(localStorage.getItem(accountGroupsKey) || '[]')
+    return Array.isArray(groups) ? groups.filter(Boolean) : []
+  } catch (e) {
+    return []
+  }
+}
+
+function saveAccountGroups() {
+  localStorage.setItem(accountGroupsKey, JSON.stringify(customGroups))
+}
+
+function ensureGroup(groupName) {
+  groupName = `${groupName || defaultGroupName}`.trim() || defaultGroupName
+  if (groupName !== defaultGroupName && !customGroups.includes(groupName)) {
+    customGroups.push(groupName)
+    saveAccountGroups()
+  }
+  if (!activeGroups.value.includes(groupName)) {
+    activeGroups.value.push(groupName)
+  }
+  return groupName
+}
+
+function createGroup() {
+  ElMessageBox.prompt(t('inputAccountGroupName'), t('createAccountGroup'), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    inputPattern: /^.{1,30}$/,
+    inputErrorMessage: t('accountGroupNameLimit')
+  }).then(({ value }) => {
+    const groupName = ensureGroup(value)
+    ElMessage({
+      message: t('accountGroupCreated', { msg: groupName }),
+      type: 'success',
+      plain: true
+    })
+  })
+}
+
+function moveAccountToGroup(account, groupName) {
+  groupName = ensureGroup(groupName)
+  const oldGroupName = accountGroupName(account)
+  account.groupName = groupName
+  accountSetGroup(account.accountId, groupName).catch(() => {
+    account.groupName = oldGroupName
+  })
+}
 
 
 const openSelect = () => {
@@ -337,7 +438,8 @@ function changeAccount(account) {
   accountStore.currentAccount = account
 }
 
-function add() {
+function add(groupName = defaultGroupName) {
+  addForm.groupName = ensureGroup(groupName)
   showAdd.value = true
   setTimeout(() => {
     addRef.value.focus()
@@ -473,10 +575,12 @@ function submit() {
   }
 
   addLoading.value = true
-  accountAdd(addForm.email + addForm.suffix, verifyToken).then(account => {
+  accountAdd(addForm.email + addForm.suffix, verifyToken, addForm.groupName).then(account => {
     addLoading.value = false
     showAdd.value = false
     addForm.email = ''
+    account.groupName = accountGroupName(account)
+    ensureGroup(account.groupName)
     accounts.push(account)
     verifyToken = ''
     settingStore.settings.addVerifyOpen = account.addVerifyOpen
@@ -570,6 +674,59 @@ path[fill="#ffdda1"] {
     margin-top: 15px;
   }
 
+  .account-collapse {
+    border: 0;
+
+    :deep(.el-collapse-item__header) {
+      height: 42px;
+      padding: 0 12px;
+      border-bottom-color: var(--el-border-color);
+      background: var(--el-bg-color);
+    }
+
+    :deep(.el-collapse-item__wrap) {
+      border-bottom: 0;
+      background: var(--el-bg-color);
+    }
+
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0;
+    }
+  }
+
+  .group-title {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+
+    .group-name {
+      font-weight: 600;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .group-count {
+      margin-left: 6px;
+      color: var(--secondary-text-color);
+      font-size: 12px;
+    }
+
+    .group-add {
+      margin-left: auto;
+      margin-right: 10px;
+      cursor: pointer;
+      color: var(--el-color-primary);
+    }
+  }
+
+  .group-empty {
+    margin: 8px 12px 12px;
+    color: var(--secondary-text-color);
+    font-size: 12px;
+  }
+
   .item {
     background-color: var(--el-bg-color);
     border-radius: 8px;
@@ -651,6 +808,11 @@ path[fill="#ffdda1"] {
 :deep(.el-pagination .el-select) {
   width: 100px;
   background: var(--el-bg-color);
+}
+
+.group-select {
+  width: 100%;
+  margin-top: 15px;
 }
 
 .add-email-turnstile {

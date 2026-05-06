@@ -4,8 +4,8 @@ export function accountList(accountId, size, lastSort) {
     return http.get('/account/list', {params: {accountId, size, lastSort}});
 }
 
-export function accountAdd(email,token) {
-    return http.post('/account/add', {email,token})
+export function accountAdd(email,token,groupName) {
+    return http.post('/account/add', {email,token,groupName})
 }
 
 export function accountSetName(accountId,name) {
@@ -22,4 +22,8 @@ export function accountSetAllReceive(accountId) {
 
 export function accountSetAsTop(accountId) {
     return http.put('/account/setAsTop', {accountId})
+}
+
+export function accountSetGroup(accountId, groupName) {
+    return http.put('/account/setGroup', {accountId, groupName})
 }
