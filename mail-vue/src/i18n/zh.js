@@ -29,6 +29,7 @@ const zh = {
     selectAccountGroup: '选择折叠项',
     emptyAccountGroup: '当前折叠项暂无邮箱，可点击标题右侧 + 创建',
     moveToGroup: '移至 {msg}',
+    deleteAccountGroupConfirm: '确定删除折叠项「{msg}」吗？该折叠项内的邮箱会移至默认折叠项。',
     manage: '管理',
     rename: '改名',
     delete: '删除',

@@ -29,6 +29,7 @@ const en = {
     selectAccountGroup: 'Select group',
     emptyAccountGroup: 'No email addresses in this group. Click + in the header to create one.',
     moveToGroup: 'Move to {msg}',
+    deleteAccountGroupConfirm: 'Delete group "{msg}"? Email addresses in this group will be moved to the default group.',
     manage: 'Manage',
     rename: 'Rename',
     delete: 'Delete',

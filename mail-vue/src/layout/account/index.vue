@@ -13,6 +13,12 @@
               <div class="group-title">
                 <span class="group-name">{{ group.name }}</span>
                 <span class="group-count">{{ group.accounts.length }}</span>
+                <Icon class="group-action" icon="ion:chevron-up-outline" width="16" height="16"
+                      @click.stop="moveGroup(group.name, -1)"/>
+                <Icon class="group-action" icon="ion:chevron-down-outline" width="16" height="16"
+                      @click.stop="moveGroup(group.name, 1)"/>
+                <Icon v-if="group.name !== defaultGroupName" class="group-action danger" icon="ion:trash-outline" width="16" height="16"
+                      @click.stop="deleteGroup(group.name)"/>
                 <Icon v-perm="'account:add'" class="group-add" icon="ion:add-outline" width="18" height="18"
                       @click.stop="add(group.name)"/>
               </div>
@@ -215,7 +221,7 @@ watch(() => accountStore.changeUserAccountName, () => {
 })
 
 const accountGroups = computed(() => {
-  const names = new Set([defaultGroupName, ...customGroups])
+  const names = new Set([...customGroups, defaultGroupName])
   accounts.forEach(item => names.add(accountGroupName(item)))
   return Array.from(names).map(name => ({
     name,
@@ -226,9 +232,6 @@ const accountGroups = computed(() => {
 watch(accountGroups, (groups) => {
   const namesList = groups.map(group => group.name)
   activeGroups.value = activeGroups.value.filter(name => namesList.includes(name))
-  if (activeGroups.value.length === 0 && namesList.length > 0) {
-    activeGroups.value = [...namesList]
-  }
 }, { immediate: true })
 
 function accountGroupName(account) {
@@ -243,9 +246,10 @@ function moveTargetGroups(account) {
 function loadAccountGroups() {
   try {
     const groups = JSON.parse(localStorage.getItem(accountGroupsKey) || '[]')
-    return Array.isArray(groups) ? groups.filter(Boolean) : []
+    const validGroups = Array.isArray(groups) ? groups.filter(Boolean) : []
+    return validGroups.includes(defaultGroupName) ? validGroups : [defaultGroupName, ...validGroups]
   } catch (e) {
-    return []
+    return [defaultGroupName]
   }
 }
 
@@ -255,14 +259,57 @@ function saveAccountGroups() {
 
 function ensureGroup(groupName) {
   groupName = `${groupName || defaultGroupName}`.trim() || defaultGroupName
-  if (groupName !== defaultGroupName && !customGroups.includes(groupName)) {
+  if (!customGroups.includes(groupName)) {
     customGroups.push(groupName)
     saveAccountGroups()
   }
-  if (!activeGroups.value.includes(groupName)) {
-    activeGroups.value.push(groupName)
-  }
   return groupName
+}
+
+function syncGroupOrder() {
+  accountGroups.value.forEach(group => {
+    if (!customGroups.includes(group.name)) {
+      customGroups.push(group.name)
+    }
+  })
+}
+
+function moveGroup(groupName, direction) {
+  syncGroupOrder()
+  const index = customGroups.indexOf(groupName)
+  const targetIndex = index + direction
+  if (index < 0 || targetIndex < 0 || targetIndex >= customGroups.length) {
+    return
+  }
+  const [group] = customGroups.splice(index, 1)
+  customGroups.splice(targetIndex, 0, group)
+  saveAccountGroups()
+}
+
+function deleteGroup(groupName) {
+  if (groupName === defaultGroupName) {
+    return
+  }
+  ElMessageBox.confirm(t('deleteAccountGroupConfirm', { msg: groupName }), {
+    confirmButtonText: t('confirm'),
+    cancelButtonText: t('cancel'),
+    type: 'warning'
+  }).then(() => {
+    const groupAccounts = accounts.filter(item => accountGroupName(item) === groupName)
+    groupAccounts.forEach(item => {
+      item.groupName = defaultGroupName
+      accountSetGroup(item.accountId, defaultGroupName).catch(() => {
+        item.groupName = groupName
+        ensureGroup(groupName)
+      })
+    })
+    const index = customGroups.indexOf(groupName)
+    if (index >= 0) {
+      customGroups.splice(index, 1)
+      saveAccountGroups()
+    }
+    activeGroups.value = activeGroups.value.filter(name => name !== groupName)
+  })
 }
 
 function createGroup() {
@@ -709,12 +756,23 @@ path[fill="#ffdda1"] {
 
     .group-count {
       margin-left: 6px;
+      margin-right: auto;
       color: var(--secondary-text-color);
       font-size: 12px;
     }
 
+    .group-action {
+      margin-left: 8px;
+      cursor: pointer;
+      color: var(--secondary-text-color);
+
+      &.danger {
+        color: var(--el-color-danger);
+      }
+    }
+
     .group-add {
-      margin-left: auto;
+      margin-left: 8px;
       margin-right: 10px;
       cursor: pointer;
       color: var(--el-color-primary);
