@@ -8,6 +8,7 @@ import accountService from './account-service';
 import BizError from '../error/biz-error';
 import emailUtils from '../utils/email-utils';
 import { Resend } from 'resend';
+import { EmailMessage } from 'cloudflare:email';
 import attService from './att-service';
 import { parseHTML } from 'linkedom';
 import userService from './user-service';
@@ -260,27 +261,17 @@ const emailService = {
 
 		//存在站外时邮箱全部由resend发送
 		if (!allInternal) {
-
-			const resend = new Resend(resendToken);
-
-			const sendForm = {
-				from: `${name} <${accountRow.email}>`,
-				to: [...receiveEmail],
-				subject: subject,
-				text: text,
-				html: html,
-				attachments: [...imageDataList, ...attachments]
-			};
-
-			if (sendType === 'reply') {
-				sendForm.headers = {
-					'in-reply-to': emailRow.messageId,
-					'references': emailRow.messageId
-				};
-			}
-
-			resendResult = await resend.emails.send(sendForm);
-
+			resendResult = await this.sendByResend(resendToken, {
+				name,
+				accountEmail: accountRow.email,
+				receiveEmail,
+				subject,
+				text,
+				html,
+				attachments: [...imageDataList, ...attachments],
+				sendType,
+				messageId: emailRow.messageId
+			});
 		}
 
 		const { data, error } = resendResult;
@@ -365,6 +356,105 @@ const emailService = {
 		}
 
 		return [ emailResult ];
+	},
+
+	async sendByResend(resendToken, params) {
+		const resend = new Resend(resendToken);
+		const sendForm = this.buildProviderSendForm(params);
+		return await resend.emails.send(sendForm);
+	},
+
+	async sendByCloudflareEmail(c, params) {
+		const sendForm = this.buildProviderSendForm(params);
+		const messageId = `<${crypto.randomUUID()}@cloud-mail>`;
+		const message = new EmailMessage(
+			sendForm.from,
+			sendForm.to.join(','),
+			this.buildRawEmail(sendForm, messageId)
+		);
+		await c.env.email.send(message);
+		return { data: { id: messageId } };
+	},
+
+	buildProviderSendForm(params) {
+		const {
+			name,
+			accountEmail,
+			receiveEmail,
+			subject,
+			text,
+			html,
+			attachments = [],
+			sendType,
+			messageId
+		} = params;
+
+		const sendForm = {
+			from: `${name} <${accountEmail}>`,
+			to: [...receiveEmail],
+			subject,
+			text,
+			html,
+			attachments: [...attachments]
+		};
+
+		if (sendType === 'reply' && messageId) {
+			sendForm.headers = {
+				'in-reply-to': messageId,
+				'references': messageId
+			};
+		}
+
+		return sendForm;
+	},
+
+	buildRawEmail(sendForm, messageId) {
+		const boundary = `----cloud-mail-${crypto.randomUUID()}`;
+		const headers = [
+			`From: ${sendForm.from}`,
+			`To: ${sendForm.to.join(', ')}`,
+			`Subject: ${sendForm.subject}`,
+			`Message-ID: ${messageId}`,
+			'MIME-Version: 1.0'
+		];
+
+		if (sendForm.headers) {
+			Object.entries(sendForm.headers).forEach(([key, value]) => headers.push(`${key}: ${value}`));
+		}
+
+		if (!sendForm.attachments.length) {
+			const contentType = sendForm.html ? 'text/html' : 'text/plain';
+			return [
+				...headers,
+				`Content-Type: ${contentType}; charset=UTF-8`,
+				'',
+				sendForm.html || sendForm.text || ''
+			].join('\r\n');
+		}
+
+		const parts = [
+			...headers,
+			`Content-Type: multipart/mixed; boundary="${boundary}"`,
+			'',
+			`--${boundary}`,
+			`Content-Type: ${sendForm.html ? 'text/html' : 'text/plain'}; charset=UTF-8`,
+			'',
+			sendForm.html || sendForm.text || ''
+		];
+
+		sendForm.attachments.forEach(attachment => {
+			parts.push(
+				`--${boundary}`,
+				`Content-Type: ${attachment.type || attachment.mimeType || 'application/octet-stream'}`,
+				`Content-Disposition: attachment; filename="${attachment.filename}"`,
+				'Content-Transfer-Encoding: base64',
+				'',
+				attachment.content
+			);
+		});
+
+		parts.push(`--${boundary}--`);
+		return parts.join('\r\n');
 	},
 
 	//处理站内邮件发送

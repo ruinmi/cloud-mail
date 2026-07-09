@@ -65,6 +65,12 @@ const zh = {
 	notAdmin: '输入的邮箱不是管理员邮箱',
 	emailExistDatabase: '有邮箱已存在数据库中',
 	notConfigOss: '对象存储未配置',
+	externalFromInvalid: '发件人邮箱无效',
+	externalFromDomainInvalid: '发件人域名不在系统配置中',
+	externalToRequired: '收件人不能为空',
+	externalSubjectRequired: '邮件标题不能为空',
+	externalContentRequired: '邮件正文不能为空',
+	noSendProvider: '没有可用的外部发信通道',
 	perms: {
 		"邮件": "邮件",
 		"邮件发送": "邮件发送",
