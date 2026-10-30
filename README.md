@@ -11,7 +11,7 @@
         </a>
         <a href="https://github.com/maillab/cloud-mail/tree/main?tab=MIT-1-ov-file" target="_blank" >
             <img src="https://img.shields.io/badge/license-MIT-green" />
-        </a>  
+        </a>
     </p>
     <p align="center" >
         <a href="https://skymail.ink">在线演示</a> · <a href="https://docs.skymail.ink">部署文档</a> ·
@@ -71,9 +71,9 @@
 
 - **🔔 邮件推送**：接收邮件后可以转发到TG机器人或其他服务商邮箱
 
-- **📡 开放API**：支持使用API批量生成用户，多条件查询邮件 
+- **📡 开放API**：支持使用API批量生成用户，多条件查询邮件
 
-- **🔢 验证码识别**：使用Workers AI，自动识别邮件验证码 
+- **🔢 验证码识别**：使用Workers AI，自动识别邮件验证码
 
 - **📈 数据可视化**：使用ECharts对系统数据详情，用户邮件增长可视化显示
 
@@ -93,9 +93,9 @@
 
 - **ORM：**[Drizzle](https://orm.drizzle.team/)
 
-- **前端框架**：[Vue3](https://vuejs.org/) 
+- **前端框架**：[Vue3](https://vuejs.org/)
 
-- **UI框架**：[Element Plus](https://element-plus.org/) 
+- **UI框架**：[Element Plus](https://element-plus.org/)
 
 - **邮件发送：** [Cloudflare Email](https://developers.cloudflare.com/email-service/) / [Resend](https://resend.com/)
 
@@ -152,7 +152,7 @@ cloud-mail
 
 ## 许可证
 
-本项目采用 [MIT](LICENSE) 许可证	
+本项目采用 [MIT](LICENSE) 许可证
 
 
 ## 交流
