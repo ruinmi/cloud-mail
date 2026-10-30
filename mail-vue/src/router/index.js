@@ -22,7 +22,7 @@ const routes = [
                 }
             },
             {
-                path: '/message',
+                path: '/:mailbox(inbox|starred|sent|all-mail)/messages',
                 name: 'content',
                 component: () => import('@/views/content/index.vue'),
                 meta: {
@@ -53,6 +53,10 @@ const routes = [
             },
         ]
 
+    },
+    {
+        path: '/messages',
+        redirect: '/inbox/messages'
     },
     {
         path: '/login',
@@ -92,22 +96,24 @@ router.beforeEach((to, from, next) => {
         clearTimeout(timer)
     }
 
-    timer = setTimeout(() => {
-        NProgress.start()
-    }, first ? 200 : 100)
+    if (!first) {
+        timer = setTimeout(() => {
+            NProgress.start()
+        }, 100)
+    }
 
     const token = localStorage.getItem('token')
 
-    if (!token && to.name !== 'login') {
+    if (!token && !to.path.startsWith('/login')) {
         return next({name: 'login'})
     }
 
-    if (!token && to.name === 'login') {
+    if (!token && to.path.startsWith('/login')) {
         loadBackground(next)
         return
     }
 
-    if (token && to.name === 'login') {
+    if (token && to.path.startsWith('/login')) {
         return next(from.path)
     }
 
@@ -149,7 +155,11 @@ function loadBackground(next) {
 router.afterEach((to) => {
 
     clearTimeout(timer)
-    NProgress.done();
+    if (first) {
+        removeLoading()
+    } else {
+        NProgress.done();
+    }
 
     const uiStore = useUiStore()
     if (to.meta.menu) {
@@ -166,5 +176,14 @@ router.afterEach((to) => {
 
     first = false
 })
+
+function removeLoading() {
+    const doc = document.getElementById('loading-first');
+    if (!doc) {
+        return;
+    }
+
+    doc.remove()
+}
 
 export default router
