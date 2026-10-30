@@ -74,7 +74,7 @@
         </template>
 
         <!-- Follow Loading Skeleton -->
-        <template v-if="accounts.length > 0 && !noLoading">
+        <template v-if="accounts.length > 0 && followLoading">
           <el-skeleton animated>
             <template #template>
               <el-card class="item">
